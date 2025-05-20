@@ -52,7 +52,7 @@ public class MigrateMethodInvocation extends Recipe {
     @Override
     public TreeVisitor<?, ExecutionContext> getVisitor() {
         requireNonNull(methodPattern);
-        return Preconditions.check(new UsesMethod<>(methodPattern), new JavaIsoVisitor<>() {
+        return Preconditions.check(new UsesMethod<>(methodPattern), new JavaIsoVisitor<ExecutionContext>() {
             private final MethodMatcher methodMatcher = new MethodMatcher(methodPattern);
 
 

@@ -18,10 +18,10 @@ dependencies {
     }
 }
 
-publishing {
-    publications {
-        named("nebula", MavenPublication::class.java) {
-            from(components["javaPlatform"])
-        }
-    }
-}
+//publishing {
+//    publications {
+//        named("nebula", MavenPublication::class.java) {
+//            from(components["javaPlatform"])
+//        }
+//    }
+//}

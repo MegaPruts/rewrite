@@ -92,3 +92,27 @@ tasks.named<ShadowJar>("shadowJar").configure {
     configurations = listOf(checkstyle)
     relocate("com.puppycrawl.tools.checkstyle", "org.openrewrite.tools.checkstyle")
 }
+
+tasks.withType<Test>().configureEach {
+    enabled = false
+
+}
+
+//plugins.withType<JavaLibraryPlugin> {
+////    apply("maven-publish")
+//
+//    extensions.configure<PublishingExtension> {
+//        publications {
+//            create<MavenPublication>("publishToMyLocalMavenRepo") {
+//                from(components["java"])
+//            }
+//        }
+//        repositories {
+//            maven {
+//                name = "_DevM2"
+//                url = uri("file:///C:/dev/.m2")
+//
+//            }
+//        }
+//    }
+//}

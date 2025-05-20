@@ -12,7 +12,7 @@ rootProject.name = "rewrite"
 // ---------------------------------------------------------------
 
 val allProjects = listOf(
-        "rewrite-benchmarks",
+//        "rewrite-benchmarks",
         "rewrite-bom",
         "rewrite-core",
         "rewrite-gradle",
