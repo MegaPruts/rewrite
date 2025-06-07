@@ -327,7 +327,7 @@ public interface Xml extends Tree {
 
         public Tag withValue(String value) {
             CharData charData;
-            if (content != null && content.get(0) instanceof CharData) {
+            if (content != null && !content.isEmpty()&& content.get(0) instanceof CharData) {
                 charData = ((CharData) content.get(0)).withText(value);
             } else {
                 charData = new CharData(randomId(), "", Markers.EMPTY,
