@@ -23,27 +23,21 @@ public class ReplaceXmlElement extends Recipe {
     String ifExistsPath;
 
     @Option(displayName = "create", description = "The xpath to the xml element to create", example = "//wsdlOptions/extraargs/extraarg{-client}")
+    @Nullable
     String create;
 
+    public static Recipe newInstance(String ifExistsPath) {
+        return newInstance(ifExistsPath, null);
+    }
+
+    public static Recipe newInstance(String ifExistsPath, String create) {
+        return new ReplaceXmlElement(ifExistsPath, create);
+    }
 
 
-//    public ReplaceXmlElement(String ifExistsPath, String create) {
-//        super();
-//        this.ifExistsPath = ifExistsPath;
-//        this.create = create;
-//
-//        parentTag = parentTag(ifExistsPath);
-//        tagToReplace = tagToReplace(ifExistsPath);
-//        tagValueToReplace = tagValueToReplace(ifExistsPath);
-//
-//        replacementParent = replacementParent(create);
-//        replacementElementName = replacementElementName(create);
-//        replacementElementValue = replacementElementValue(create);
-//
-//    }
 
     private String replacementElementValue() {
- return create.split("/")[1].split("[\\[\\]]")[1];
+        return create.split("/")[1].split("[\\[\\]]")[1];
 
     }
 
@@ -52,19 +46,19 @@ public class ReplaceXmlElement extends Recipe {
     }
 
     private String replacementParent() {
-return   create.split("/")[0];
+        return create.split("/")[0];
     }
 
     private String tagToReplace() {
-return  ifExistsPath.split("/")[1].split("\\[")[0];
+        return ifExistsPath.split("/")[1].split("\\[")[0];
     }
 
     private String tagValueToReplace() {
-return ifExistsPath.split("/")[1].split("[\\[\\]]")[1];
+        return ifExistsPath.split("/")[1].split("[\\[\\]]")[1];
     }
 
     private String parentTag() {
-       return ifExistsPath.split("/")[0];
+        return ifExistsPath.split("/")[0];
     }
 
     @Override
@@ -100,16 +94,18 @@ return ifExistsPath.split("/")[1].split("[\\[\\]]")[1];
                 }
 
                 @NotNull List<Xml.Tag> newChildren = tag.getChildren().stream().filter(c -> c != optionalTagToReplace.get()).collect(Collectors.toList());
-                // Build <extraargs>-client</extraarg>
-                Xml.Tag replacementElement = Xml.Tag.build("<%s></%s>".formatted(replacementElementName(), replacementElementName()))
-                        .withValue(replacementElementValue());
+                if (create != null) {
+                    // Build <extraargs>-client</extraarg>
+                    Xml.Tag replacementElement = Xml.Tag.build("<%s></%s>".formatted(replacementElementName(), replacementElementName()))
+                            .withValue(replacementElementValue());
 
 
-                // LookFor the <extraargs> tag. Create a new one if none exists
-                Xml.Tag replacementParent = tag.getChildren().stream().filter(c -> replacementParent().equals(c.getName())).findAny().orElse(Xml.Tag.build("<%s></%s>".formatted(replacementParent(), replacementParent()))).withContent(List.of(replacementElement));
+                    // LookFor the <extraargs> tag. Create a new one if none exists
+                    Xml.Tag replacementParent = tag.getChildren().stream().filter(c -> replacementParent().equals(c.getName())).findAny().orElse(Xml.Tag.build("<%s></%s>".formatted(replacementParent(), replacementParent()))).withContent(List.of(replacementElement));
 
-                // Add extraargs to the content
-                newChildren.add(replacementParent);
+                    // Add extraargs to the content
+                    newChildren.add(replacementParent);
+                }
 
                 // Return new <wsdlOption> with updated children
                 return tag.withContent(newChildren);

@@ -66,4 +66,27 @@ class ReplaceXmlElementTest implements RewriteTest {
         );
     }
 
+    @DocumentExample
+    @Test
+    void only_deletion_when_no_replacement_is_specified() {
+        rewriteRun(spec -> spec.recipe( ReplaceXmlElement.newInstance("wsdlOption/genServer[false]")),
+          xml("""
+            <plugin>
+                <wsdlOption>
+                    <genClient>false</genClient>
+                    <genServer>false</genServer>
+                </wsdlOption>
+            </plugin>
+            """,
+            """
+            <plugin>
+                <wsdlOption>
+                    <genClient>false</genClient>
+                </wsdlOption>
+            </plugin>
+            """
+          )
+        );
+    }
+
 }
