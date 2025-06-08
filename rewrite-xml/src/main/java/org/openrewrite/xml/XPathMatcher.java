@@ -23,8 +23,10 @@ import org.openrewrite.xml.trait.Namespaced;
 import org.openrewrite.xml.tree.Xml;
 
 import java.util.*;
+import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Supports a limited set of XPath expressions, specifically those documented on <a
@@ -42,23 +44,27 @@ public class XPathMatcher {
     // Regular expression to support conditional tags like `plugin[artifactId='maven-compiler-plugin']` or foo[@bar='baz']
     private static final Pattern ELEMENT_WITH_CONDITION_PATTERN = Pattern.compile("(@)?([-:\\w]+|\\*)(\\[.+])");
     private static final Pattern CONDITION_PATTERN = Pattern.compile("(\\[.*?])+?");
-    private static final Pattern CONDITION_CONJUNCTION_PATTERN = Pattern.compile("(((local-name|namespace-uri)\\(\\)|(@)?([-\\w:]+|\\*))=[\"'](.*?)[\"'](\\h?(or|and)\\h?)?)+?");
+    private static final Pattern CONDITION_CONJUNCTION_PATTERN = Pattern.compile("(((local-name|namespace-uri|text)\\(\\)|(@)?([-\\w:]+|\\*))=[\"'](.*?)[\"'](\\h?(or|and)\\h?)?)+?");
 
-    private final String expression;
+    private final String xPathToMatch;
     private final boolean startsWithSlash;
     private final boolean startsWithDoubleSlash;
-    private final String[] parts;
+    private final String[] xPathParts;
     private final long tagMatchingParts;
 
-    public XPathMatcher(String expression) {
-        this.expression = expression;
-        startsWithSlash = expression.startsWith("/");
-        startsWithDoubleSlash = expression.startsWith("//");
-        parts = splitOnXPathSeparator(expression.substring(startsWithDoubleSlash ? 2 : startsWithSlash ? 1 : 0));
-        tagMatchingParts = Arrays.stream(parts).filter(part -> !part.isEmpty() && !part.startsWith("@")).count();
+    public static String[] xPathParts(String xPath) {
+        return splitOnXPathSeparator(xPath.substring(xPath.startsWith("//") ? 2 : xPath.startsWith("/") ? 1 : 0));
     }
 
-    private String[] splitOnXPathSeparator(String input) {
+    public XPathMatcher(String xPathToMatch) {
+        this.xPathToMatch = xPathToMatch;
+        startsWithSlash = xPathToMatch.startsWith("/");
+        startsWithDoubleSlash = xPathToMatch.startsWith("//");
+        xPathParts = xPathParts(xPathToMatch);
+        tagMatchingParts = Arrays.stream(xPathParts).filter(part -> !part.isEmpty() && !part.startsWith("@")).count();
+    }
+
+    private static String[] splitOnXPathSeparator(String input) {
         List<String> matches = new ArrayList<>();
         Matcher m = XPATH_ELEMENT_SPLITTER.matcher(input);
         while (m.find()) {
@@ -74,30 +80,30 @@ public class XPathMatcher {
      * @return true if the expression matches the cursor, false otherwise
      */
     public boolean matches(Cursor cursor) {
-        List<Xml.Tag> path = new ArrayList<>();
+        List<Xml.Tag> pathToTheCursor = new ArrayList<>();
         for (Cursor c = cursor; c != null; c = c.getParent()) {
             if (c.getValue() instanceof Xml.Tag) {
-                path.add(c.getValue());
+                pathToTheCursor.add(c.getValue());
             }
         }
 
         if (startsWithDoubleSlash || !startsWithSlash) {
             int pathIndex = 0;
-            for (int i = parts.length - 1; i >= 0; i--, pathIndex++) {
-                String part = parts[i];
+            for (int i = xPathParts.length - 1; i >= 0; i--, pathIndex++) {
+                String part = xPathParts[i];
 
                 String partWithCondition = null;
                 Xml.Tag tagForCondition = null;
                 boolean conditionIsBefore = false;
-                if (part.endsWith("]") && i < path.size()) {
+                if (part.endsWith("]") && i < pathToTheCursor.size()) {
                     int index = part.indexOf("[");
                     if (index < 0) {
                         return false;
                     }
                     partWithCondition = part;
-                    tagForCondition = path.get(pathIndex);
-                } else if (i < path.size() && i > 0 && parts[i - 1].endsWith("]")) {
-                    String partBefore = parts[i - 1];
+                    tagForCondition = pathToTheCursor.get(pathIndex);
+                } else if (i < pathToTheCursor.size() && i > 0 && xPathParts[i - 1].endsWith("]")) {
+                    String partBefore = xPathParts[i - 1];
                     int index = partBefore.indexOf("[");
                     if (index < 0) {
                         return false;
@@ -105,7 +111,7 @@ public class XPathMatcher {
                     if (!partBefore.contains("@")) {
                         conditionIsBefore = true;
                         partWithCondition = partBefore;
-                        tagForCondition = path.get(parts.length - i);
+                        tagForCondition = pathToTheCursor.get(xPathParts.length - i);
                     }
                 } else if (part.endsWith(")")) { // is xpath method
                     // TODO: implement other xpath methods
@@ -117,7 +123,7 @@ public class XPathMatcher {
 
                 Matcher matcher;
                 if (tagForCondition != null && partWithCondition.endsWith("]") &&
-                    (matcher = ELEMENT_WITH_CONDITION_PATTERN.matcher(partWithCondition)).matches()) {
+                        (matcher = ELEMENT_WITH_CONDITION_PATTERN.matcher(partWithCondition)).matches()) {
                     String optionalPartName = matchesElementWithConditionFunction(matcher, tagForCondition, cursor);
                     if (optionalPartName == null) {
                         return false;
@@ -144,15 +150,15 @@ public class XPathMatcher {
                 }
 
                 boolean conditionNotFulfilled = tagForCondition == null ||
-                                                (!part.equals(partName) && !tagForCondition.getName().equals(partName));
+                        (!part.equals(partName) && !tagForCondition.getName().equals(partName));
 
                 int idx = part.indexOf("[");
                 if (idx > 0) {
                     part = part.substring(0, idx);
                 }
-                if (path.size() < i + 1 ||
-                    (!(path.get(pathIndex).getName().equals(part)) && !"*".equals(part)) ||
-                    conditionIsBefore && conditionNotFulfilled) {
+                if (pathToTheCursor.size() < i + 1 ||
+                        (!(pathToTheCursor.get(pathIndex).getName().equals(part)) && !"*".equals(part)) ||
+                        conditionIsBefore && conditionNotFulfilled) {
                     return false;
                 }
             }
@@ -160,16 +166,16 @@ public class XPathMatcher {
             // we have matched the whole XPath, and it does not start with the root
             return true;
         } else {
-            Collections.reverse(path);
+            Collections.reverse(pathToTheCursor);
 
             // Deal with the two forward slashes in the expression; works, but I'm not proud of it.
-            if (expression.contains("//") && Arrays.stream(parts).anyMatch(StringUtils::isBlank)) {
-                int blankPartIndex = Arrays.asList(parts).indexOf("");
-                int doubleSlashIndex = expression.indexOf("//");
+            if (xPathToMatch.contains("//") && Arrays.stream(xPathParts).anyMatch(StringUtils::isBlank)) {
+                int blankPartIndex = Arrays.asList(xPathParts).indexOf("");
+                int doubleSlashIndex = xPathToMatch.indexOf("//");
 
-                if (path.size() > blankPartIndex && path.size() >= tagMatchingParts) {
-                    Xml.Tag blankPartTag = path.get(blankPartIndex);
-                    String part = parts[blankPartIndex + 1];
+                if (pathToTheCursor.size() > blankPartIndex && pathToTheCursor.size() >= tagMatchingParts) {
+                    Xml.Tag blankPartTag = pathToTheCursor.get(blankPartIndex);
+                    String part = xPathParts[blankPartIndex + 1];
                     Matcher matcher = ELEMENT_WITH_CONDITION_PATTERN.matcher(part);
                     if (matcher.matches() ?
                             matchesElementWithConditionFunction(matcher, blankPartTag, cursor) != null :
@@ -182,25 +188,25 @@ public class XPathMatcher {
                     String newExpression = String.format(
                             // the // here allows to skip several levels of nested elements
                             "%s/%s//%s",
-                            expression.substring(0, doubleSlashIndex),
+                            xPathToMatch.substring(0, doubleSlashIndex),
                             blankPartTag.getName(),
-                            expression.substring(doubleSlashIndex + 2)
+                            xPathToMatch.substring(doubleSlashIndex + 2)
                     );
                     return new XPathMatcher(newExpression).matches(cursor);
-                } else if (path.size() == tagMatchingParts) {
+                } else if (pathToTheCursor.size() == tagMatchingParts) {
                     return matchesWithoutDoubleSlashesAt(cursor, doubleSlashIndex);
                 }
             }
 
-            if (tagMatchingParts > path.size()) {
+            if (tagMatchingParts > pathToTheCursor.size()) {
                 return false;
             }
 
-            for (int i = 0; i < parts.length; i++) {
-                String part = parts[i];
+            for (int i = 0; i < xPathParts.length; i++) {
+                String part = xPathParts[i];
 
                 int isAttr = part.startsWith("@") ? 1 : 0;
-                Xml.Tag tag = i - isAttr < path.size() ? path.get(i - isAttr) : null;
+                Xml.Tag tag = i - isAttr < pathToTheCursor.size() ? pathToTheCursor.get(i - isAttr) : null;
                 String partName;
                 boolean matchedCondition = false;
 
@@ -221,24 +227,24 @@ public class XPathMatcher {
                         return true;
                     }
                     return cursor.getValue() instanceof Xml.Attribute &&
-                           (((Xml.Attribute) cursor.getValue()).getKeyAsString().equals(part.substring(1)) ||
-                            "*".equals(part.substring(1)));
+                            (((Xml.Attribute) cursor.getValue()).getKeyAsString().equals(part.substring(1)) ||
+                                    "*".equals(part.substring(1)));
                 }
 
-                if (path.size() < i + 1 || (tag != null && !tag.getName().equals(partName) && !partName.equals("*") && !"*".equals(part))) {
+                if (pathToTheCursor.size() < i + 1 || (tag != null && !tag.getName().equals(partName) && !partName.equals("*") && !"*".equals(part))) {
                     return false;
                 }
             }
 
-            return cursor.getValue() instanceof Xml.Tag && path.size() == parts.length;
+            return cursor.getValue() instanceof Xml.Tag && pathToTheCursor.size() == xPathParts.length;
         }
     }
 
     private boolean matchesWithoutDoubleSlashesAt(Cursor cursor, int doubleSlashIndex) {
         String newExpression = String.format(
                 "%s/%s",
-                expression.substring(0, doubleSlashIndex),
-                expression.substring(doubleSlashIndex + 2)
+                xPathToMatch.substring(0, doubleSlashIndex),
+                xPathToMatch.substring(doubleSlashIndex + 2)
         );
         return new XPathMatcher(newExpression).matches(cursor);
     }
@@ -334,7 +340,23 @@ public class XPathMatcher {
         } else if (selector.equals("namespace-uri()")) {
             Optional<String> nsUri = namespaced.getNamespaceUri();
             return nsUri.isPresent() && nsUri.get().equals(value);
+        } else if (selector.equals("text()")) {
+            Object cursorElement = namespaced.getCursor().getValue();
+            if (cursorElement instanceof Xml.Tag) {
+                Optional<String> textValue = ((Xml.Tag) cursorElement).getValue();
+                return textValue.isPresent() && textValue.get().equals(value);
+            }
+            ;
+            return false;
         }
         return false;
+    }
+
+    public List<String> tagNames() {
+        return Arrays.stream(xPathParts).map(this::tagName).collect(Collectors.toList());
+    }
+
+    private String tagName(String tagName) {
+        return CONDITION_PATTERN.matcher(tagName).find() ? tagName.split("\\[")[0] : tagName;
     }
 }

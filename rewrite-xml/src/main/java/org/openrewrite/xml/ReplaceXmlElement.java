@@ -1,64 +1,39 @@
 package org.openrewrite.xml;
 
-import lombok.AllArgsConstructor;
-import lombok.extern.java.Log;
+import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.Nullable;
-import org.openrewrite.ExecutionContext;
-import org.openrewrite.Option;
-import org.openrewrite.Recipe;
-import org.openrewrite.TreeVisitor;
+import org.openrewrite.*;
 import org.openrewrite.xml.tree.Xml;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class ReplaceXmlElement extends Recipe {
     private static final Logger LOG = Logger.getLogger(ReplaceXmlElement.class.getName());
 
-    @Option(displayName = "ifExistsPath", description = "The xpath to the xml element to find.", example = "//wsdlOptions/frontEnd{genClient}")
-    String ifExistsPath;
+    @Option(displayName = "partToRemove", description = "The xpath to the xml element to find.", example = "//wsdlOptions/genClient[text()='true']")
+    final String partToRemove;
 
-    @Option(displayName = "create", description = "The xpath to the xml element to create", example = "//wsdlOptions/extraargs/extraarg{-client}")
+    @Option(displayName = "insertionPoint", description = "The xpath to the position where to create the xml element", example = "//wsdlOptions/extraargs/extraarg{-client}")
     @Nullable
-    String create;
+    final String insertionPoint;
+
+    @Option(displayName = "newElement", description = "The xml element to create", example = "<extraargs><extraarg>-client<extraarg><extraargs>")
+    @Nullable
+    final String newElement;
+
 
     public static Recipe newInstance(String ifExistsPath) {
-        return newInstance(ifExistsPath, null);
+        return newInstance(ifExistsPath, null, null);
     }
 
-    public static Recipe newInstance(String ifExistsPath, String create) {
-        return new ReplaceXmlElement(ifExistsPath, create);
-    }
-
-
-
-    private String replacementElementValue() {
-        return create.split("/")[1].split("[\\[\\]]")[1];
-
-    }
-
-    private String replacementElementName() {
-        return create.split("/")[1].split("\\[")[0];
-    }
-
-    private String replacementParent() {
-        return create.split("/")[0];
-    }
-
-    private String tagToReplace() {
-        return ifExistsPath.split("/")[1].split("\\[")[0];
-    }
-
-    private String tagValueToReplace() {
-        return ifExistsPath.split("/")[1].split("[\\[\\]]")[1];
-    }
-
-    private String parentTag() {
-        return ifExistsPath.split("/")[0];
+    public static Recipe newInstance(String ifExistsPath, String insertionPoint, String create) {
+        return new ReplaceXmlElement(ifExistsPath, insertionPoint, create);
     }
 
     @Override
@@ -76,41 +51,54 @@ public class ReplaceXmlElement extends Recipe {
         return new XmlIsoVisitor<ExecutionContext>() {
             @Override
             public Xml.Tag visitTag(Xml.Tag tag, ExecutionContext ctx) {
+                if (cursorMatches(getCursor(), existingRootElementName())) {
+                    doAfterVisit(new RemoveXmlTag(partToRemove, null).getVisitor());
+                    doAfterVisit(new AddOrUpdateChildTag(
+                            insertionPoint,
+                            newElement,
+                            true).getVisitor());
 
-                if (!parentTag().equals(tag.getName())) {
-                    LOG.finest("Tag to replace doesn't match %s <> %s".formatted(tag.getName(), parentTag()));
                     return super.visitTag(tag, ctx);
                 }
-                // LookFor the <genClient> tag
-                Optional<Xml.Tag> optionalTagToReplace = tag.getChildren().stream().filter(c -> tagToReplace().equals(c.getName())).findAny();
-                if (!optionalTagToReplace.isPresent()) {
-                    LOG.fine("Tag to replace not found %s".formatted(tagToReplace()));
-                    return super.visitTag(tag, ctx);
-                }
-
-                if (!valueMatches(optionalTagToReplace.get().getValue(), tagValueToReplace())) {
-                    LOG.fine("Value to replace not found %s".formatted(tagValueToReplace()));
-                    return super.visitTag(tag, ctx);
-                }
-
-                @NotNull List<Xml.Tag> newChildren = tag.getChildren().stream().filter(c -> c != optionalTagToReplace.get()).collect(Collectors.toList());
-                if (create != null) {
-                    // Build <extraargs>-client</extraarg>
-                    Xml.Tag replacementElement = Xml.Tag.build("<%s></%s>".formatted(replacementElementName(), replacementElementName()))
-                            .withValue(replacementElementValue());
-
-
-                    // LookFor the <extraargs> tag. Create a new one if none exists
-                    Xml.Tag replacementParent = tag.getChildren().stream().filter(c -> replacementParent().equals(c.getName())).findAny().orElse(Xml.Tag.build("<%s></%s>".formatted(replacementParent(), replacementParent()))).withContent(List.of(replacementElement));
-
-                    // Add extraargs to the content
-                    newChildren.add(replacementParent);
-                }
-
-                // Return new <wsdlOption> with updated children
-                return tag.withContent(newChildren);
+                return super.visitTag(tag, ctx);
             }
         };
+    }
+
+    private List<Xml.Tag> childrenAfterRemoval(Xml.Tag tag, String ifExistsPath) {
+        List<String> xPathPartsToRemove = Arrays.stream(XPathMatcher.xPathParts(ifExistsPath)).filter(p -> !p.equals(existingRootElementName())).collect(Collectors.toList());
+
+        @NotNull List<Xml.Tag> newChildren = tag.getChildren().stream().filter(c -> !xPathPartsToRemove.contains(c.getName())).collect(Collectors.toList());
+        return newChildren;
+    }
+
+
+    private boolean cursorMatches(Cursor cursor, String elementName) {
+        return ((Xml.Tag) cursor.getValue()).getName().equals(elementName);
+    }
+
+    private String existingRootElementName() {
+
+//        if (existingRootElementName == null) existingRootElementName = rootElementName(ifExistsPath);
+//        return existingRootElementName;
+
+        return rootElementName(partToRemove);
+    }
+
+    private String rootElementName(String xPath) {
+        return XPathMatcher.xPathParts(xPath)[0];
+    }
+
+    private Xml.Tag traverseToElement(Cursor cursor, @Nullable String elementNameToFind) {
+        Cursor current = cursor.getParent();
+        while (!((Xml.Tag) current.getValue()).getName().equals(elementNameToFind)) {
+            current = current.getParent();
+        }
+        return (Xml.Tag) current.getValue();
+    }
+
+    private boolean tagMatches(Cursor cursor, String xPathToMatch) {
+        return new XPathMatcher(xPathToMatch).matches(cursor);
     }
 
     private boolean valueMatches(Optional<String> sourceValue, String targetValue) {

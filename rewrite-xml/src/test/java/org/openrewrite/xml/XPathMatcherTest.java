@@ -161,6 +161,11 @@ class XPathMatcherTest {
         assertThat(match("dependency/artifactId/@*", xmlDoc)).isTrue();
         assertThat(match("//dependency/artifactId/@scope", xmlDoc)).isTrue();
     }
+    @Test
+    void findElementWithSpecifiedTextValue() {
+        assertThat(match("//artifactId[text()='assertj-core']", xmlDoc)).isTrue();
+        assertThat(match("//*[text()='content3']", namespacedXml)).isTrue();
+    }
 
     @Test
     void matchNestedElementsWithSameName() {
@@ -307,19 +312,21 @@ class XPathMatcherTest {
         assertThat(match("//@*[namespace-uri()='http://www.example.com/namespace3']", namespacedXml)).isTrue();
     }
 
+
+
     @Test
     @Disabled
     void otherUncoveredXpathFunctions() {
         // Other common XPath functions
-       assertThat(match("contains(/root/element1, 'content1')", namespacedXml)).isTrue();
-       assertThat(match("not(contains(/root/element1, 'content1'))", namespacedXml)).isFalse();
-       assertThat(match("string-length(/root/element1) > 2", namespacedXml)).isTrue();
-       assertThat(match("starts-with(/root/element1, 'content1')", namespacedXml)).isTrue();
-       assertThat(match("ends-with(/root/element1, 'content1')", namespacedXml)).isTrue();
-       assertThat(match("substring-before(/root/element1, '1') = 'content'", namespacedXml)).isTrue();
-       assertThat(match("substring-after(/root/element1, 'content') = '1'", namespacedXml)).isTrue();
-       assertThat(match("/root/element1/text()", namespacedXml)).isTrue();
-       assertThat(match("count(/root/*)", namespacedXml)).isTrue();
+        assertThat(match("contains(/root/element1, 'content1')", namespacedXml)).isTrue();
+        assertThat(match("not(contains(/root/element1, 'content1'))", namespacedXml)).isFalse();
+        assertThat(match("string-length(/root/element1) > 2", namespacedXml)).isTrue();
+        assertThat(match("starts-with(/root/element1, 'content1')", namespacedXml)).isTrue();
+        assertThat(match("ends-with(/root/element1, 'content1')", namespacedXml)).isTrue();
+        assertThat(match("substring-before(/root/element1, '1') = 'content'", namespacedXml)).isTrue();
+        assertThat(match("substring-after(/root/element1, 'content') = '1'", namespacedXml)).isTrue();
+        assertThat(match("/root/element1/text()", namespacedXml)).isTrue();
+        assertThat(match("count(/root/*)", namespacedXml)).isTrue();
     }
 
     @Test

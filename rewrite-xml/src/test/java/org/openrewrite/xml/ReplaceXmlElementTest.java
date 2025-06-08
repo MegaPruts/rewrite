@@ -32,19 +32,34 @@ class ReplaceXmlElementTest implements RewriteTest {
     @DocumentExample
     @Test
     void replaceXmlElement() {
-        rewriteRun(spec -> spec.recipe(new ReplaceXmlElement("wsdlOption/genClient[true]", "extraargs/extraarg[-client]")),
+        rewriteRun(spec -> spec.recipe(new ReplaceXmlElement("//wsdlOptions/wsdlOption/genClient[text()='true']","//wsdlOptions", "<extraargs><extraarg>-client</extraarg></extraargs>")),
           xml("""
             <plugin>
-                <wsdlOption>
-                    <genClient>true</genClient>
-                    <genServer>false</genServer>
-                </wsdlOption>
+                <execustions>
+                    <configuration>
+                        <wsdlOptions>
+                            <wsdlOption>
+                                <genClient>true</genClient>
+                                <genServer>false</genServer>
+                            </wsdlOption>
+                        </wsdlOptions>
+                    </configuration>
+                </execustions>
             </plugin>
             """, """
             <plugin>
-                <wsdlOption>
-                    <genServer>false</genServer><extraargs><extraarg>-client</extraarg></extraargs>
-                </wsdlOption>
+                <execustions>
+                    <configuration>
+                        <wsdlOptions>
+                            <wsdlOption>
+                                <genServer>false</genServer>
+                            </wsdlOption>
+                            <extraargs>
+                                <extraarg>-client</extraarg>
+                            </extraargs>
+                        </wsdlOptions>
+                    </configuration>
+                </execustions>
             </plugin>
             """)
         );
@@ -53,14 +68,20 @@ class ReplaceXmlElementTest implements RewriteTest {
 
     @DocumentExample
     @Test
-    void noReplacement_when_tagValueToReplace_does_not_match() {
-        rewriteRun(spec -> spec.recipe(new ReplaceXmlElement("wsdlOption/genClient[true]", "extraargs/extraarg[-client]")),
+    void noReplacement_when_theValue_ofThe_tagToSearchFor_does_not_match() {
+        rewriteRun(spec -> spec.recipe(new ReplaceXmlElement("//wsdlOption/genClient[true]","//wsdlOption", "extraargs/extraarg[-client]")),
           xml("""
             <plugin>
-                <wsdlOption>
-                    <genClient>false</genClient>
-                    <genServer>false</genServer>
-                </wsdlOption>
+                <execustions>
+                    <configuration>
+                        <wsdlOptions>
+                            <wsdlOption>
+                                <genClient>false</genClient>
+                                <genServer>false</genServer>
+                            </wsdlOption>
+                        </wsdlOptions>
+                    </configuration>
+                </execustions>
             </plugin>
             """)
         );
@@ -72,17 +93,29 @@ class ReplaceXmlElementTest implements RewriteTest {
         rewriteRun(spec -> spec.recipe( ReplaceXmlElement.newInstance("wsdlOption/genServer[false]")),
           xml("""
             <plugin>
-                <wsdlOption>
-                    <genClient>false</genClient>
-                    <genServer>false</genServer>
-                </wsdlOption>
+                <execustions>
+                    <configuration>
+                        <wsdlOptions>
+                            <wsdlOption>
+                                <genClient>false</genClient>
+                                <genServer>false</genServer>
+                            </wsdlOption>
+                        </wsdlOptions>
+                    </configuration>
+                </execustions>
             </plugin>
             """,
             """
             <plugin>
-                <wsdlOption>
-                    <genClient>false</genClient>
-                </wsdlOption>
+                <execustions>
+                    <configuration>
+                        <wsdlOptions>
+                            <wsdlOption>
+                                <genClient>false</genClient>
+                            </wsdlOption>
+                        </wsdlOptions>
+                    </configuration>
+                </execustions>
             </plugin>
             """
           )
