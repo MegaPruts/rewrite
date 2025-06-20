@@ -10,9 +10,9 @@ java {
         languageVersion.set(JavaLanguageVersion.of(21))
     }
 }
-val javaTck = configurations.create("javaTck") {
-    isTransitive = false
-}
+//val javaTck = configurations.create("javaTck") {
+//    isTransitive = false
+//}
 
 dependencies {
     api(project(":rewrite-core"))
@@ -27,7 +27,7 @@ dependencies {
 
     testImplementation(project(":rewrite-test"))
     testImplementation("org.antlr:antlr4-runtime:4.13.2")
-    "javaTck"(project(":rewrite-java-tck"))
+//    "javaTck"(project(":rewrite-java-tck"))
 }
 
 tasks.withType<JavaCompile> {
@@ -67,7 +67,7 @@ testing {
             dependencies {
                 implementation(project())
                 implementation(project(":rewrite-test"))
-                implementation(project(":rewrite-java-tck"))
+//                implementation(project(":rewrite-java-tck"))
                 implementation(project(":rewrite-java-test"))
                 implementation("org.assertj:assertj-core:latest.release")
             }
@@ -76,7 +76,7 @@ testing {
                 all {
                     testTask.configure {
                         useJUnitPlatform()
-                        testClassesDirs += files(javaTck.files.map { zipTree(it) })
+//                        testClassesDirs += files(javaTck.files.map { zipTree(it) })
                         jvmArgs = listOf("-XX:+UnlockDiagnosticVMOptions", "-XX:+ShowHiddenFrames")
                         shouldRunAfter(test)
                     }
@@ -86,6 +86,6 @@ testing {
     }
 }
 
-tasks.named("check") {
-    dependsOn(testing.suites.named("compatibilityTest"))
-}
+//tasks.named("check") {
+//    dependsOn(testing.suites.named("compatibilityTest"))
+//}

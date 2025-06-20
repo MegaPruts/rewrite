@@ -15,6 +15,16 @@
  */
 package org.openrewrite.xml;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
 import org.jspecify.annotations.Nullable;
 import org.openrewrite.Cursor;
 import org.openrewrite.internal.StringUtils;
@@ -22,21 +32,14 @@ import org.openrewrite.xml.search.FindTags;
 import org.openrewrite.xml.trait.Namespaced;
 import org.openrewrite.xml.tree.Xml;
 
-import java.util.*;
-import java.util.regex.MatchResult;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
 /**
  * Supports a limited set of XPath expressions, specifically those documented on <a
- * href="https://www.w3schools.com/xml/xpath_syntax.asp">this page</a>.
- * Additionally, supports `local-name()` and `namespace-uri()` conditions, `and`/`or` operators, and chained conditions.
+ * href="https://www.w3schools.com/xml/xpath_syntax.asp">this page</a>. Additionally, supports `local-name()` and `namespace-uri()`
+ * conditions, `and`/`or` operators, and chained conditions.
  * <p>
  * Used for checking whether a visitor's cursor meets a certain XPath expression.
  * <p>
- * The "current node" for XPath evaluation is always the root node of the document. As a result, '.' and '..' are not
- * recognized.
+ * The "current node" for XPath evaluation is always the root node of the document. As a result, '.' and '..' are not recognized.
  */
 public class XPathMatcher {
 
@@ -44,13 +47,18 @@ public class XPathMatcher {
     // Regular expression to support conditional tags like `plugin[artifactId='maven-compiler-plugin']` or foo[@bar='baz']
     private static final Pattern ELEMENT_WITH_CONDITION_PATTERN = Pattern.compile("(@)?([-:\\w]+|\\*)(\\[.+])");
     private static final Pattern CONDITION_PATTERN = Pattern.compile("(\\[.*?])+?");
-    private static final Pattern CONDITION_CONJUNCTION_PATTERN = Pattern.compile("(((local-name|namespace-uri|text)\\(\\)|(@)?([-\\w:]+|\\*))=[\"'](.*?)[\"'](\\h?(or|and)\\h?)?)+?");
+    private static final Pattern CONDITION_CONJUNCTION_PATTERN =
+            Pattern.compile("(((local-name|namespace-uri|text)\\(\\)|(@)?([-\\w:]+|\\*))=[\"'](.*?)[\"'](\\h?(or|and)\\h?)?)+?");
 
     private final String xPathToMatch;
     private final boolean startsWithSlash;
     private final boolean startsWithDoubleSlash;
     private final String[] xPathParts;
     private final long tagMatchingParts;
+
+    public static XPathMatcher xPathMatcher(String xPath) {
+        return new XPathMatcher(xPath);
+    }
 
     public static String[] xPathParts(String xPath) {
         return splitOnXPathSeparator(xPath.substring(xPath.startsWith("//") ? 2 : xPath.startsWith("/") ? 1 : 0));
@@ -231,7 +239,11 @@ public class XPathMatcher {
                                     "*".equals(part.substring(1)));
                 }
 
-                if (pathToTheCursor.size() < i + 1 || (tag != null && !tag.getName().equals(partName) && !partName.equals("*") && !"*".equals(part))) {
+                if (pathToTheCursor.size() < i + 1 || (tag != null
+                        && !tag.getName().equals(partName)
+                        && !partName.equals("*")
+                        && !"*".equals(
+                        part))) {
                     return false;
                 }
             }
@@ -253,10 +265,10 @@ public class XPathMatcher {
      * Checks that the given {@code tag} matches the XPath part represented by {@code matcher}.
      *
      * @param matcher an XPath part matcher for {@link #ELEMENT_WITH_CONDITION_PATTERN}
-     * @param tag     a tag to match
-     * @param cursor  the cursor we are trying to match
-     * @return the element name specified before the condition of the part
-     * (either {@code tag.getName()}, {@code "*"} or an attribute name) or {@code null} if the tag did not match
+     * @param tag a tag to match
+     * @param cursor the cursor we are trying to match
+     * @return the element name specified before the condition of the part (either {@code tag.getName()}, {@code "*"} or an attribute name)
+     *         or {@code null} if the tag did not match
      */
     private @Nullable String matchesElementWithConditionFunction(Matcher matcher, Xml.Tag tag, Cursor cursor) {
         boolean isAttributeElement = matcher.group(1) != null;

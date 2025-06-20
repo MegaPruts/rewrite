@@ -15,7 +15,26 @@ configure<org.owasp.dependencycheck.gradle.extension.DependencyCheckExtension> {
 }
 
 repositories {
-    mavenCentral()
+    // releases
+    maven {
+        name = "APG-releases"
+        url = uri(System.getenv("MVN_REPO_RELEASES"))
+        credentials {
+            username = System.getenv("MVN_USERNAME")
+            password = System.getenv("MVN_PASSWORD")
+        }
+    }
+    // snapshots
+    maven {
+        name = "APG-snapshots"
+        url = uri(System.getenv("MVN_REPO_SNAPSHOTS"))
+        credentials {
+            username = System.getenv("MVN_USERNAME")
+            password = System.getenv("MVN_PASSWORD")
+        }
+    }
+    mavenLocal()
+//    mavenCentral()
 }
 
 allprojects {
@@ -33,8 +52,62 @@ allprojects {
 //            url = uri("file:///C:/aa06010/.m2/repository")
 //        }
 //    }
+    repositories {
+        // releases
+        maven {
+            name = "APG-releases"
+            url = uri(System.getenv("MVN_REPO_RELEASES"))
+            credentials {
+                username = System.getenv("MVN_USERNAME")
+                password = System.getenv("MVN_PASSWORD")
+            }
+        }
+        // snapshots
+        maven {
+            name = "APG-snapshots"
+            url = uri(System.getenv("MVN_REPO_SNAPSHOTS"))
+            credentials {
+                username = System.getenv("MVN_USERNAME")
+                password = System.getenv("MVN_PASSWORD")
+            }
+        }
+        mavenLocal()
+//    mavenCentral()
+    }
+
+}
+
+subprojects {
 
 
+
+    plugins.withType<JavaLibraryPlugin> {
+        apply(plugin = "maven-publish")
+        version = "8.53.1.3"
+
+        extensions.configure<PublishingExtension> {
+            publications {
+                create<MavenPublication>(
+                    "_toMyLocalMavenRepo_"
+                ) {
+                    from(components["java"])
+
+                    version=project.version.toString() // ensure it remains 1.0-SNAPSHOT
+
+                    // optionally: explicitly name artifct file to avoid timestamping
+                    artifactId=project.name
+                    println("Publishing version: ${project.version.toString()} -> $artifactId.$version")
+                }
+            }
+            repositories {
+                maven {
+                    name = "_DevM2"
+                    url = uri("file:///C:/dev/.m2")
+
+                }
+            }
+        }
+    }
 }
 
 gradle.projectsEvaluated {

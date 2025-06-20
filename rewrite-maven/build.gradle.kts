@@ -22,6 +22,9 @@ dependencies {
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-smile")
     implementation("com.fasterxml.jackson.module:jackson-module-jaxb-annotations")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jdk8")
+    implementation("org.slf4j:slf4j-api:2.0.13")
+    runtimeOnly("ch.qos.logback:logback-classic:1.4.14")
+
 
     // needed by AddDependency
     implementation(project(":rewrite-java"))
@@ -51,9 +54,9 @@ tasks.register<JavaExec>("generateAntlrSources") {
     mainClass.set("org.antlr.v4.Tool")
 
     args = listOf(
-            "-o", "src/main/java/org/openrewrite/maven/internal/grammar",
-            "-package", "org.openrewrite.maven.internal.grammar",
-            "-visitor"
+        "-o", "src/main/java/org/openrewrite/maven/internal/grammar",
+        "-package", "org.openrewrite.maven.internal.grammar",
+        "-visitor"
     ) + fileTree("src/main/antlr").matching { include("**/*.g4") }.map { it.path }
 
     classpath = sourceSets["main"].runtimeClasspath

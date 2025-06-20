@@ -15,15 +15,15 @@
  */
 package org.openrewrite.maven;
 
+import static org.openrewrite.java.Assertions.*;
+import static org.openrewrite.maven.Assertions.*;
+
 import org.junit.jupiter.api.Test;
 import org.openrewrite.DocumentExample;
 import org.openrewrite.Issue;
 import org.openrewrite.test.RecipeSpec;
 import org.openrewrite.test.RewriteTest;
 import org.openrewrite.test.SourceSpec;
-
-import static org.openrewrite.java.Assertions.mavenProject;
-import static org.openrewrite.maven.Assertions.pomXml;
 
 class AddPropertyTest implements RewriteTest {
     @Override
@@ -41,7 +41,7 @@ class AddPropertyTest implements RewriteTest {
                 <groupId>com.mycompany.app</groupId>
                 <artifactId>my-app</artifactId>
                 <version>1</version>
-              
+                            
                 <dependencies>
                 </dependencies>
               </project>
@@ -54,7 +54,7 @@ class AddPropertyTest implements RewriteTest {
                 <properties>
                   <key>value</key>
                 </properties>
-              
+                            
                 <dependencies>
                 </dependencies>
               </project>
@@ -80,22 +80,21 @@ class AddPropertyTest implements RewriteTest {
           ),
           mavenProject("my-app",
             pomXml(
-       """
-              <project>
-                <parent>
-                  <groupId>com.mycompany.app</groupId>
-                  <artifactId>my-parent</artifactId>
-                  <version>1</version>
-                </parent>
-                <artifactId>my-app</artifactId>
-                <version>1</version>
-              </project>
               """
+                <project>
+                  <parent>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>my-parent</artifactId>
+                    <version>1</version>
+                  </parent>
+                  <artifactId>my-app</artifactId>
+                  <version>1</version>
+                </project>
+                """
             )
           )
         );
     }
-
 
     @Issue("https://github.com/openrewrite/rewrite/issues/3895")
     @Test
@@ -128,33 +127,33 @@ class AddPropertyTest implements RewriteTest {
           ),
           mavenProject("my-app",
             pomXml(
-        """
-               <project>
-                 <parent>
-                   <groupId>com.mycompany.app</groupId>
-                   <artifactId>my-parent</artifactId>
-                   <version>1</version>
-                   <relativePath>../pom.xml</relativePath>
-                 </parent>
-                 <artifactId>my-app</artifactId>
-                 <version>1</version>
-                 <properties>
-                  <key>oldValue</key>
-                 </properties>
-               </project>
-               """,
-          """
-                 <project>
-                   <parent>
-                     <groupId>com.mycompany.app</groupId>
-                     <artifactId>my-parent</artifactId>
-                     <version>1</version>
-                     <relativePath>../pom.xml</relativePath>
-                   </parent>
-                   <artifactId>my-app</artifactId>
-                   <version>1</version>
-                 </project>
-                 """
+              """
+                <project>
+                  <parent>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>my-parent</artifactId>
+                    <version>1</version>
+                    <relativePath>../pom.xml</relativePath>
+                  </parent>
+                  <artifactId>my-app</artifactId>
+                  <version>1</version>
+                  <properties>
+                   <key>oldValue</key>
+                  </properties>
+                </project>
+                """,
+              """
+                <project>
+                  <parent>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>my-parent</artifactId>
+                    <version>1</version>
+                    <relativePath>../pom.xml</relativePath>
+                  </parent>
+                  <artifactId>my-app</artifactId>
+                  <version>1</version>
+                </project>
+                """
             )
           )
         );
@@ -179,17 +178,234 @@ class AddPropertyTest implements RewriteTest {
           ),
           mavenProject("my-app",
             pomXml(
-        """
-              <project>
-                <parent>
-                  <groupId>com.mycompany.app</groupId>
-                  <artifactId>my-parent</artifactId>
+              """
+                <project>
+                  <parent>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>my-parent</artifactId>
+                    <version>1</version>
+                  </parent>
+                  <artifactId>my-app</artifactId>
                   <version>1</version>
-                </parent>
-                <artifactId>my-app</artifactId>
+                </project>
+                """
+            )
+          )
+        );
+    }
+
+    @Test
+    void dontAddToChildIfParentIs_NOT_trusted() {
+        rewriteRun(
+          spec -> spec.recipe(new AddProperty("key", "value", null, true)),
+          pomXml(
+            """
+              <project>
+                <groupId>com.mycompany.app</groupId>
+                <artifactId>my-parent</artifactId>
                 <version>1</version>
+                <properties>
+                  <key>value</key>
+                </properties>
               </project>
               """
+          )
+          ,
+          mavenProject("my-app",
+            pomXml(
+              """
+                <project>
+                  <parent>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>my-parent</artifactId>
+                    <version>1</version>
+                  </parent>
+                  <artifactId>my-app</artifactId>
+                  <version>1</version>
+                </project>
+                """
+            )
+          )
+        );
+    }
+
+    @Test
+    void addToParentAndChild() {
+        rewriteRun(
+          spec -> spec.recipe(new AddProperty("key", "value", null, null)),
+          pomXml(
+            """
+              <project>
+                <groupId>com.mycompany.app</groupId>
+                <artifactId>my-parent</artifactId>
+                <version>1</version>
+              </project>
+              """,
+            """
+              <project>
+                <groupId>com.mycompany.app</groupId>
+                <artifactId>my-parent</artifactId>
+                <version>1</version>
+                <properties>
+                  <key>value</key>
+                </properties>
+              </project>
+              """
+          )
+          ,
+          mavenProject("my-app",
+            pomXml(
+              """
+                <project>
+                  <parent>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>my-parent</artifactId>
+                    <version>1</version>
+                  </parent>
+                  <artifactId>my-app</artifactId>
+                  <version>1</version>
+                </project>
+                """,
+              """
+                <project>
+                  <parent>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>my-parent</artifactId>
+                    <version>1</version>
+                  </parent>
+                  <artifactId>my-app</artifactId>
+                  <version>1</version>
+                  <properties>
+                    <key>value</key>
+                  </properties>
+                </project>
+                """
+            )
+          )
+        );
+    }
+
+    @Test
+    void overwriteExistingValueInParent() {
+        rewriteRun(
+          spec -> spec.recipe(new AddProperty("key", "theWholeNewValue", false, true)),
+          pomXml(
+            """
+              <project>
+                <groupId>com.mycompany.app</groupId>
+                <artifactId>my-parent</artifactId>
+                <version>1</version>
+                <properties>
+                  <key>value</key>
+                </properties>
+              </project>
+              """,
+            """
+              <project>
+                <groupId>com.mycompany.app</groupId>
+                <artifactId>my-parent</artifactId>
+                <version>1</version>
+                <properties>
+                  <key>theWholeNewValue</key>
+                </properties>
+              </project>
+              """
+          )
+          ,
+          mavenProject("my-app",
+            pomXml(
+              """
+                <project>
+                  <parent>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>my-parent</artifactId>
+                    <version>1</version>
+                  </parent>
+                  <artifactId>my-app</artifactId>
+                  <version>1</version>
+                  <properties>
+                     <key>anotherValue</key>
+                  </properties>
+                </project>
+                """,
+              """
+                <project>
+                  <parent>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>my-parent</artifactId>
+                    <version>1</version>
+                  </parent>
+                  <artifactId>my-app</artifactId>
+                  <version>1</version>
+                  <properties>
+                     <key>theWholeNewValue</key>
+                  </properties>
+                </project>
+                """
+            ),
+            pomXml(
+              """
+                <project>
+                  <parent>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>my-parent</artifactId>
+                    <version>1</version>
+                  </parent>
+                  <artifactId>my-second-app</artifactId>
+                  <version>1</version>
+                </project>
+                """
+            )
+          )
+        );
+    }
+
+    @Test
+    void dontAddOrUpdate_IfNonExisting_orExistsWithDifferentValue() {
+        rewriteRun(
+          spec -> spec.recipe(new AddProperty("key", "theWholeNewValue", true, true)),
+          pomXml(
+            """
+              <project>
+                <groupId>com.mycompany.app</groupId>
+                <artifactId>my-parent</artifactId>
+                <version>1</version>
+                <properties>
+                  <key>value</key>
+                </properties>
+              </project>
+              """
+          )
+          ,
+          mavenProject("my-app",
+            pomXml(
+              """
+                <project>
+                  <parent>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>my-parent</artifactId>
+                    <version>1</version>
+                  </parent>
+                  <artifactId>my-app</artifactId>
+                  <version>1</version>
+                  <properties>
+                     <key>anotherValue</key>
+                  </properties>
+                </project>
+                """
+            ),
+            pomXml(
+              """
+                <project>
+                  <parent>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>my-parent</artifactId>
+                    <version>1</version>
+                  </parent>
+                  <artifactId>my-second-app</artifactId>
+                  <version>1</version>
+                </project>
+                """
             )
           )
         );
@@ -211,7 +427,7 @@ class AddPropertyTest implements RewriteTest {
                 <version>1</version>
               </project>
               """,
-                """
+            """
               <project>
                 <parent>
                   <groupId>org.springframework.boot</groupId>
@@ -248,7 +464,7 @@ class AddPropertyTest implements RewriteTest {
                 <version>1</version>
               </project>
               """,
-                """
+            """
               <project>
                 <parent>
                   <groupId>org.springframework.boot</groupId>
@@ -286,7 +502,7 @@ class AddPropertyTest implements RewriteTest {
                 <version>1</version>
               </project>
               """,
-                """
+            """
               <project>
                 <parent>
                   <groupId>org.springframework.boot</groupId>
@@ -371,16 +587,16 @@ class AddPropertyTest implements RewriteTest {
         rewriteRun(
           spec -> spec.recipe(new AddProperty("key", "value", true, false)),
           pomXml(
-     """
-            <project>
-              <groupId>com.mycompany.app</groupId>
-              <artifactId>my-app</artifactId>
-              <version>1</version>
-              <properties>
-                <key>v</key>
-              </properties>
-            </project>
             """
+              <project>
+                <groupId>com.mycompany.app</groupId>
+                <artifactId>my-app</artifactId>
+                <version>1</version>
+                <properties>
+                  <key>v</key>
+                </properties>
+              </project>
+              """
           )
         );
     }

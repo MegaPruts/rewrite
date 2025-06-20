@@ -15,6 +15,10 @@
  */
 package org.openrewrite.maven;
 
+import static org.openrewrite.java.Assertions.*;
+import static org.openrewrite.maven.Assertions.*;
+import static org.openrewrite.test.RewriteTest.*;
+
 import org.intellij.lang.annotations.Language;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
@@ -26,10 +30,6 @@ import org.openrewrite.java.ChangePackage;
 import org.openrewrite.java.JavaParser;
 import org.openrewrite.test.RecipeSpec;
 import org.openrewrite.test.RewriteTest;
-
-import static org.openrewrite.java.Assertions.*;
-import static org.openrewrite.maven.Assertions.pomXml;
-import static org.openrewrite.test.RewriteTest.toRecipe;
 
 @SuppressWarnings("NewClassNamingConvention")
 class AddDependencyTest implements RewriteTest {
@@ -54,7 +54,8 @@ class AddDependencyTest implements RewriteTest {
     @Test
     void addDependenciesOnEmptyProject() {
         rewriteRun(
-          spec -> spec.recipe(new AddDependency("com.google.guava", "guava", "29.0-jre", null, null, true, null, null, null, null, null, null)),
+          spec -> spec.recipe(
+            new AddDependency("com.google.guava", "guava", "29.0-jre", null, null, true, null, null, null, null, null, null)),
           pomXml("""
               <project>
                   <groupId>com.mycompany.app</groupId>
@@ -114,7 +115,23 @@ class AddDependencyTest implements RewriteTest {
           )
         );
     }
+    @Test
+    void dontAddDependencyToItself() {
+        rewriteRun(
+          spec -> spec
+            .recipe(addDependency("com.mycompany.app:my-app:1.2.3")),
+            pomXml(
+              """
+                    <project>
+                        <groupId>com.mycompany.app</groupId>
+                        <artifactId>my-app</artifactId>
+                        <version>1.2.3</version>
+                    </project>
+                """
+            )
 
+        );
+    }
     @Test
     void systemScope() {
         rewriteRun(
@@ -190,7 +207,7 @@ class AddDependencyTest implements RewriteTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"com.google.common.math.*", "com.google.common.math.IntMath"})
+    @ValueSource(strings = { "com.google.common.math.*", "com.google.common.math.IntMath" })
     void onlyIfUsingTestScope(String onlyIfUsing) {
         rewriteRun(
           spec -> spec.recipe(
@@ -228,7 +245,7 @@ class AddDependencyTest implements RewriteTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"com.google.common.math.*", "com.google.common.math.IntMath"})
+    @ValueSource(strings = { "com.google.common.math.*", "com.google.common.math.IntMath" })
     void onlyIfUsingCompileScope(String onlyIfUsing) {
         rewriteRun(
           spec -> spec.recipe(addDependency("com.google.guava:guava:29.0-jre", onlyIfUsing)),
@@ -526,7 +543,7 @@ class AddDependencyTest implements RewriteTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"com.google.common.math.*", "com.google.common.math.IntMath"})
+    @ValueSource(strings = { "com.google.common.math.*", "com.google.common.math.IntMath" })
     void semverSelector(String onlyIfUsing) {
         rewriteRun(
           spec -> spec.recipe(new AddDependency("com.google.guava", "guava", "29.x", "-jre", null, false, onlyIfUsing,
@@ -930,7 +947,7 @@ class AddDependencyTest implements RewriteTest {
 
     @Issue("https://github.com/openrewrite/rewrite/issues/2255")
     @ParameterizedTest
-    @ValueSource(strings = {"provided", "runtime", "test"})
+    @ValueSource(strings = { "provided", "runtime", "test" })
     void addScopedDependency(String scope) {
         rewriteRun(
           spec -> spec.recipe(addDependency(
@@ -1125,6 +1142,99 @@ class AddDependencyTest implements RewriteTest {
     }
 
     @Test
+    void preferChildPom() {
+        String[] gavParts = "org.antlr:antlr4-runtime:4.13.2".split(":");
+        rewriteRun(
+          spec -> spec.recipe(new AddDependency(gavParts[0], gavParts[1], gavParts[2], "preferChild", null, true, null, null, null,
+            false, null, false)),
+          mavenProject("root",
+            pomXml(
+              """
+                <project>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>root</artifactId>
+                    <version>1</version>
+                    <modules>
+                        <module>project1</module>
+                        <module>project2</module>
+                    </modules>
+                </project>
+                """
+            )
+          ),
+          mavenProject("project1",
+            pomXml(
+              """
+                <project>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>project1</artifactId>
+                    <version>1</version>
+                    <parent>
+                        <groupId>com.mycompany.app</groupId>
+                        <artifactId>root</artifactId>
+                        <version>1</version>
+                    </parent>
+                </project>
+                """,
+              """
+                <project>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>project1</artifactId>
+                    <version>1</version>
+                    <parent>
+                        <groupId>com.mycompany.app</groupId>
+                        <artifactId>root</artifactId>
+                        <version>1</version>
+                    </parent>
+                    <dependencies>
+                        <dependency>
+                            <groupId>org.antlr</groupId>
+                            <artifactId>antlr4-runtime</artifactId>
+                            <version>4.13.2</version>
+                        </dependency>
+                    </dependencies>                  
+                </project>
+                """)
+          ),
+          mavenProject("project2",
+            pomXml(
+              """
+                <project>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>project2</artifactId>
+                    <version>1</version>
+                    <parent>
+                        <groupId>com.mycompany.app</groupId>
+                        <artifactId>root</artifactId>
+                        <version>1</version>
+                    </parent>
+                </project>
+                """,
+              """
+                <project>
+                    <groupId>com.mycompany.app</groupId>
+                    <artifactId>project2</artifactId>
+                    <version>1</version>
+                    <parent>
+                        <groupId>com.mycompany.app</groupId>
+                        <artifactId>root</artifactId>
+                        <version>1</version>
+                    </parent>
+                    <dependencies>
+                        <dependency>
+                            <groupId>org.antlr</groupId>
+                            <artifactId>antlr4-runtime</artifactId>
+                            <version>4.13.2</version>
+                        </dependency>
+                    </dependencies>                  
+                </project>
+                """
+            )
+          )
+        );
+    }
+
+    @Test
     void rawVisitorDoesNotDuplicate() {
         rewriteRun(
           spec -> spec.recipe(
@@ -1172,7 +1282,8 @@ class AddDependencyTest implements RewriteTest {
     @Test
     void noCompileScopeDependency() {
         rewriteRun(
-          spec -> spec.recipe(addDependency("jakarta.xml.bind:jakarta.xml.bind-api:latest.release", "com.google.common.math.IntMath", true)),
+          spec -> spec.recipe(
+            addDependency("jakarta.xml.bind:jakarta.xml.bind-api:latest.release", "com.google.common.math.IntMath", true)),
           mavenProject(
             "project",
             srcMainJava(
@@ -1185,35 +1296,35 @@ class AddDependencyTest implements RewriteTest {
                   <groupId>org.springframework.samples</groupId>
                   <artifactId>spring-petclinic</artifactId>
                   <version>2.7.3</version>
-                
+                                
                   <parent>
                     <groupId>org.springframework.boot</groupId>
                     <artifactId>spring-boot-starter-parent</artifactId>
                     <version>3.0.5</version>
                   </parent>
                   <name>petclinic</name>
-                
+                                
                   <properties>
                     <jakarta-servlet.version>5.0.0</jakarta-servlet.version>
-                
+                                
                     <java.version>17</java.version>
                     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
                     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-                
+                                
                     <webjars-bootstrap.version>5.1.3</webjars-bootstrap.version>
                     <webjars-font-awesome.version>4.7.0</webjars-font-awesome.version>
-                
+                                
                     <jacoco.version>0.8.8</jacoco.version>
-                
+                                
                   </properties>
-                
+                                
                   <dependencies>
                     <dependency>
                       <groupId>org.springframework.boot</groupId>
                       <artifactId>spring-boot-starter-data-jpa</artifactId>
                     </dependency>
                   </dependencies>
-                
+                                
                 </project>
                 """,
               """
@@ -1222,28 +1333,28 @@ class AddDependencyTest implements RewriteTest {
                   <groupId>org.springframework.samples</groupId>
                   <artifactId>spring-petclinic</artifactId>
                   <version>2.7.3</version>
-                
+                                
                   <parent>
                     <groupId>org.springframework.boot</groupId>
                     <artifactId>spring-boot-starter-parent</artifactId>
                     <version>3.0.5</version>
                   </parent>
                   <name>petclinic</name>
-                
+                                
                   <properties>
                     <jakarta-servlet.version>5.0.0</jakarta-servlet.version>
-                
+                                
                     <java.version>17</java.version>
                     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
                     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-                
+                                
                     <webjars-bootstrap.version>5.1.3</webjars-bootstrap.version>
                     <webjars-font-awesome.version>4.7.0</webjars-font-awesome.version>
-                
+                                
                     <jacoco.version>0.8.8</jacoco.version>
-                
+                                
                   </properties>
-                
+                                
                   <dependencies>
                     <dependency>
                       <groupId>jakarta.xml.bind</groupId>
@@ -1254,7 +1365,7 @@ class AddDependencyTest implements RewriteTest {
                       <artifactId>spring-boot-starter-data-jpa</artifactId>
                     </dependency>
                   </dependencies>
-                
+                                
                 </project>
                 """
             )
@@ -1265,7 +1376,8 @@ class AddDependencyTest implements RewriteTest {
     @Test
     void addDependenciesOnEmptyProjectWithMavenProject() {
         rewriteRun(
-          spec -> spec.recipe(new AddDependency("com.google.guava", "guava", "29.0-jre", null, null, true, null, null, null, null, null, null)),
+          spec -> spec.recipe(
+            new AddDependency("com.google.guava", "guava", "29.0-jre", null, null, true, null, null, null, null, null, null)),
           mavenProject("my-app", pomXml("""
                 <project>
                     <groupId>com.mycompany.app</groupId>
@@ -1668,7 +1780,8 @@ class AddDependencyTest implements RewriteTest {
         return addDependency(gav, onlyIfUsing, null, null);
     }
 
-    private AddDependency addDependency(String gav, @Nullable String onlyIfUsing, @SuppressWarnings("SameParameterValue") Boolean acceptTransitive) {
+    private AddDependency addDependency(String gav, @Nullable String onlyIfUsing,
+      @SuppressWarnings("SameParameterValue") Boolean acceptTransitive) {
         return addDependency(gav, onlyIfUsing, null, acceptTransitive);
     }
 
@@ -1676,7 +1789,8 @@ class AddDependencyTest implements RewriteTest {
         return addDependency(gav, onlyIfUsing, scope, null);
     }
 
-    private AddDependency addDependency(String gav, @Nullable String onlyIfUsing, @Nullable String scope, @Nullable Boolean acceptTransitive) {
+    private AddDependency addDependency(String gav, @Nullable String onlyIfUsing, @Nullable String scope,
+      @Nullable Boolean acceptTransitive) {
         String[] gavParts = gav.split(":");
         return new AddDependency(gavParts[0], gavParts[1], gavParts[2], null, scope, true, onlyIfUsing, null, null,
           false, null, acceptTransitive);

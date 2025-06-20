@@ -32,17 +32,19 @@ class ReplaceXmlElementTest implements RewriteTest {
     @DocumentExample
     @Test
     void replaceXmlElement() {
-        rewriteRun(spec -> spec.recipe(new ReplaceXmlElement("//wsdlOptions/wsdlOption/genClient[text()='true']","//wsdlOptions", "<extraargs><extraarg>-client</extraarg></extraargs>")),
+        rewriteRun(spec -> spec.recipe(new ReplaceXmlElement("genClient[text()='true']","//wsdlOptions", "<extraargs><extraarg>-client</extraarg></extraargs>")),
           xml("""
             <plugin>
                 <execustions>
                     <configuration>
                         <wsdlOptions>
                             <wsdlOption>
-                                <genClient>true</genClient>
-                                <genServer>false</genServer>
+                                <wsdl>${wsdl.resources}/wow-sync/WowSync.wsdl</wsdl>
+                                <wsdlLocation>/wsdl/wow-sync/WowSync.wsdl</wsdlLocation>
                             </wsdlOption>
                         </wsdlOptions>
+                        <genClient>true</genClient>
+                        <genServer>false</genServer>
                     </configuration>
                 </execustions>
             </plugin>
@@ -52,12 +54,14 @@ class ReplaceXmlElementTest implements RewriteTest {
                     <configuration>
                         <wsdlOptions>
                             <wsdlOption>
-                                <genServer>false</genServer>
+                                <wsdl>${wsdl.resources}/wow-sync/WowSync.wsdl</wsdl>
+                                <wsdlLocation>/wsdl/wow-sync/WowSync.wsdl</wsdlLocation>
                             </wsdlOption>
                             <extraargs>
                                 <extraarg>-client</extraarg>
                             </extraargs>
                         </wsdlOptions>
+                        <genServer>false</genServer>
                     </configuration>
                 </execustions>
             </plugin>
@@ -69,7 +73,7 @@ class ReplaceXmlElementTest implements RewriteTest {
     @DocumentExample
     @Test
     void noReplacement_when_theValue_ofThe_tagToSearchFor_does_not_match() {
-        rewriteRun(spec -> spec.recipe(new ReplaceXmlElement("//wsdlOption/genClient[true]","//wsdlOption", "extraargs/extraarg[-client]")),
+        rewriteRun(spec -> spec.recipe(new ReplaceXmlElement("genClient[text()='true']","//wsdlOption", "<extraargs><extraarg>-client</extraarg></extraargs>")),
           xml("""
             <plugin>
                 <execustions>
@@ -90,7 +94,7 @@ class ReplaceXmlElementTest implements RewriteTest {
     @DocumentExample
     @Test
     void only_deletion_when_no_replacement_is_specified() {
-        rewriteRun(spec -> spec.recipe( ReplaceXmlElement.newInstance("wsdlOption/genServer[false]")),
+        rewriteRun(spec -> spec.recipe( ReplaceXmlElement.newInstance("wsdlOption/genServer[text()='false']")),
           xml("""
             <plugin>
                 <execustions>

@@ -15,11 +15,25 @@
  */
 package org.openrewrite.maven;
 
-import lombok.EqualsAndHashCode;
-import lombok.Value;
-import lombok.With;
+import static java.util.Objects.*;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
+
 import org.jspecify.annotations.Nullable;
-import org.openrewrite.*;
+import org.openrewrite.ExecutionContext;
+import org.openrewrite.Option;
+import org.openrewrite.Preconditions;
+import org.openrewrite.ScanningRecipe;
+import org.openrewrite.SourceFile;
+import org.openrewrite.Tree;
+import org.openrewrite.TreeVisitor;
+import org.openrewrite.Validated;
 import org.openrewrite.java.marker.JavaProject;
 import org.openrewrite.java.marker.JavaSourceSet;
 import org.openrewrite.java.search.UsesType;
@@ -28,20 +42,20 @@ import org.openrewrite.maven.table.MavenMetadataFailures;
 import org.openrewrite.maven.tree.MavenResolutionResult;
 import org.openrewrite.maven.tree.ResolvedDependency;
 import org.openrewrite.maven.tree.ResolvedGroupArtifactVersion;
+import org.openrewrite.maven.tree.ResolvedPom;
 import org.openrewrite.maven.tree.Scope;
 import org.openrewrite.semver.Semver;
 import org.openrewrite.xml.tree.Xml;
 
-import java.util.*;
-import java.util.regex.Pattern;
-
-import static java.util.Objects.requireNonNull;
+import lombok.EqualsAndHashCode;
+import lombok.Value;
+import lombok.With;
 
 /**
- * This recipe will detect the presence of Java types (in Java ASTs) to determine if a dependency should be added
- * to a maven build file. Java Provenance information is used to filter the type search to only those java ASTs that
- * have the same coordinates of that of the pom. Additionally, if a "scope" is specified in this recipe, the dependency
- * will only be added if there are types found in a given source set are transitively within that scope.
+ * This recipe will detect the presence of Java types (in Java ASTs) to determine if a dependency should be added to a maven build file.
+ * Java Provenance information is used to filter the type search to only those java ASTs that have the same coordinates of that of the pom.
+ * Additionally, if a "scope" is specified in this recipe, the dependency will only be added if there are types found in a given source set
+ * are transitively within that scope.
  * <p>
  * NOTE: IF PROVENANCE INFORMATION IS NOT PRESENT, THIS RECIPE WILL DO NOTHING.
  */
@@ -68,7 +82,7 @@ public class AddDependency extends ScanningRecipe<AddDependency.Scanned> {
 
     @Option(displayName = "Version pattern",
             description = "Allows version selection to be extended beyond the original Node Semver semantics. So for example," +
-                          "Setting 'version' to \"25-29\" can be paired with a metadata pattern of \"-jre\" to select Guava 29.0-jre",
+                    "Setting 'version' to \"25-29\" can be paired with a metadata pattern of \"-jre\" to select Guava 29.0-jre",
             example = "-jre",
             required = false)
     @Nullable
@@ -76,9 +90,9 @@ public class AddDependency extends ScanningRecipe<AddDependency.Scanned> {
 
     @Option(displayName = "Scope",
             description = "A scope to use when it is not what can be inferred from usage. Most of the time this will be left empty, but " +
-                          "is used when adding a runtime, provided, or import dependency.",
+                    "is used when adding a runtime, provided, or import dependency.",
             example = "runtime",
-            valid = {"import", "runtime", "provided", "test"},
+            valid = { "import", "runtime", "provided", "test" },
             required = false)
     @Nullable
     String scope;
@@ -98,7 +112,7 @@ public class AddDependency extends ScanningRecipe<AddDependency.Scanned> {
 
     @Option(displayName = "Type",
             description = "The type of dependency to add. If omitted Maven defaults to assuming the type is \"jar\".",
-            valid = {"jar", "pom", "war"},
+            valid = { "jar", "pom", "war" },
             example = "jar",
             required = false)
     @Nullable
@@ -121,8 +135,9 @@ public class AddDependency extends ScanningRecipe<AddDependency.Scanned> {
      * A glob expression used to identify other dependencies in the same family as the dependency to be added.
      */
     @Option(displayName = "Family pattern",
-            description = "A pattern, applied to groupIds, used to determine which other dependencies should have aligned version numbers. " +
-                          "Accepts '*' as a wildcard character.",
+            description = "A pattern, applied to groupIds, used to determine which other dependencies should have aligned version numbers. "
+                    +
+                    "Accepts '*' as a wildcard character.",
             example = "com.fasterxml.jackson*",
             required = false)
     @Nullable
@@ -130,7 +145,8 @@ public class AddDependency extends ScanningRecipe<AddDependency.Scanned> {
     String familyPattern;
 
     @Option(displayName = "Accept transitive",
-            description = "Default false. If enabled, the dependency will not be added if it is already on the classpath as a transitive dependency.",
+            description = "Default false. If enabled, the dependency will not be added if it is already on the classpath as a transitive "
+                    + "dependency.",
             example = "true",
             required = false)
     @Nullable
@@ -141,7 +157,7 @@ public class AddDependency extends ScanningRecipe<AddDependency.Scanned> {
         Validated<Object> validated = super.validate();
         //noinspection ConstantConditions
         if (version != null) {
-            validated = validated.or(Semver.validate(version, versionPattern));
+            validated = validated.or(Semver.validate(version, versionPattern()));
         }
         return validated;
     }
@@ -205,77 +221,118 @@ public class AddDependency extends ScanningRecipe<AddDependency.Scanned> {
 
     @Override
     public TreeVisitor<?, ExecutionContext> getVisitor(Scanned acc) {
-        return Preconditions.check(onlyIfUsing == null || acc.usingType && !acc.scopeByProject.isEmpty(), new MavenVisitor<ExecutionContext>() {
-            @Nullable
-            final Pattern familyPatternCompiled = familyPattern == null ? null : Pattern.compile(familyPattern.replace("*", ".*"));
+        return Preconditions.check(onlyIfUsing == null || acc.usingType && !acc.scopeByProject.isEmpty(),
+                new MavenVisitor<ExecutionContext>() {
+                    @Nullable
+                    final Pattern familyPatternCompiled = familyPattern == null ? null : Pattern.compile(familyPattern.replace("*", ".*"));
 
-            @Override
-            public Xml visitDocument(Xml.Document document, ExecutionContext ctx) {
-                Xml maven = super.visitDocument(document, ctx);
-
-                JavaProject javaProject = document.getMarkers().findFirst(JavaProject.class).orElse(null);
-                String maybeScope = javaProject == null ? null : acc.scopeByProject.get(javaProject);
-                if (onlyIfUsing != null && maybeScope == null && !acc.scopeByProject.isEmpty()) {
-                    return maven;
-                }
-
-                // If the dependency is already in compile scope it will be available everywhere, no need to continue
-                Map<Scope, List<ResolvedDependency>> dependencies = getResolutionResult().getDependencies();
-                if (dependencies.get(Scope.Compile) != null) {
-                    for (ResolvedDependency d : dependencies.get(Scope.Compile)) {
-                        if (hasAcceptableTransitivity(d, acc) &&
-                            groupId.equals(d.getGroupId()) && artifactId.equals(d.getArtifactId())) {
+                    @Override
+                    public Xml visitDocument(Xml.Document document, ExecutionContext ctx) {
+                        Xml maven = super.visitDocument(document, ctx);
+                        if (addingToItself())
+                            return maven;
+                        JavaProject javaProject = document.getMarkers().findFirst(JavaProject.class).orElse(null);
+                        String maybeScope = javaProject == null ? null : acc.scopeByProject.get(javaProject);
+                        if (onlyIfUsing != null && maybeScope == null && !acc.scopeByProject.isEmpty()) {
                             return maven;
                         }
-                    }
-                }
 
-                String resolvedScope = scope == null ? maybeScope : scope;
-                Scope resolvedScopeEnum = Scope.fromName(resolvedScope);
-                if ((resolvedScopeEnum == Scope.Provided || resolvedScopeEnum == Scope.Test) && dependencies.get(resolvedScopeEnum) != null) {
-                    for (ResolvedDependency d : dependencies.get(resolvedScopeEnum)) {
-                        if (hasAcceptableTransitivity(d, acc) &&
-                                groupId.equals(d.getGroupId()) && artifactId.equals(d.getArtifactId())) {
+                        // If the dependency is already in compile scope it will be available everywhere, no need to continue
+                        Map<Scope, List<ResolvedDependency>> dependencies = getResolutionResult().getDependencies();
+                        if (dependencies.get(Scope.Compile) != null) {
+                            for (ResolvedDependency d : dependencies.get(Scope.Compile)) {
+                                if (hasAcceptableTransitivity(d, acc) &&
+                                        groupId.equals(d.getGroupId()) && artifactId.equals(d.getArtifactId())) {
+                                    return maven;
+                                }
+                            }
+                        }
+
+                        String resolvedScope = scope == null ? maybeScope : scope;
+                        Scope resolvedScopeEnum = Scope.fromName(resolvedScope);
+                        if ((resolvedScopeEnum == Scope.Provided || resolvedScopeEnum == Scope.Test)
+                                && dependencies.get(resolvedScopeEnum) != null) {
+                            for (ResolvedDependency d : dependencies.get(resolvedScopeEnum)) {
+                                if (hasAcceptableTransitivity(d, acc) &&
+                                        groupId.equals(d.getGroupId()) && artifactId.equals(d.getArtifactId())) {
+                                    return maven;
+                                }
+                            }
+                        }
+
+                        if (preferParent()) {
+                            if (onlyIfUsing == null && isSubprojectOfParentInRepository(acc)) {
+                                return maven;
+                            }
+                            if (isAggregatorNotUsedAsParent()) {
+                                return maven;
+                            }
+                        }
+
+                        if (preferChild() && hasModules()) {
                             return maven;
                         }
+
+                        return new AddDependencyVisitor(
+                                groupId, artifactId, version, versionPattern(), resolvedScope, releasesOnly,
+                                type, classifier, optional, familyPatternCompiled, metadataFailures).visitNonNull(document, ctx);
                     }
-                }
 
-                if (onlyIfUsing == null && isSubprojectOfParentInRepository(acc)) {
-                    return maven;
-                }
-                if (isAggregatorNotUsedAsParent()) {
-                    return maven;
-                }
-
-                return new AddDependencyVisitor(
-                        groupId, artifactId, version, versionPattern, resolvedScope, releasesOnly,
-                        type, classifier, optional, familyPatternCompiled, metadataFailures).visitNonNull(document, ctx);
-            }
-
-            private boolean isSubprojectOfParentInRepository(Scanned acc) {
-                return getResolutionResult().getParent() != null &&
-                       acc.pomsDefinedInCurrentRepository.contains(getResolutionResult().getParent().getPom().getGav());
-            }
-
-            private boolean isAggregatorNotUsedAsParent() {
-                List<String> subprojects = getResolutionResult().getPom().getSubprojects();
-                if (subprojects == null || subprojects.isEmpty()) {
-                    return false;
-                }
-                List<MavenResolutionResult> modules = getResolutionResult().getModules();
-                if (modules.isEmpty()) {
-                    return true;
-                }
-                for (MavenResolutionResult child : modules) {
-                    if (subprojects.contains(child.getPom().getGav().getArtifactId())) {
-                        return false;
+                    private boolean addingToItself() {
+                        final ResolvedPom currentPom = getResolutionResult().getPom();
+                        return currentPom.getGroupId().equals(groupId) && currentPom.getArtifactId().equals(artifactId);
                     }
-                }
-                return true;
-            }
 
-        });
+                    private boolean isSubprojectOfParentInRepository(Scanned acc) {
+                        return getResolutionResult().getParent() != null &&
+                                acc.pomsDefinedInCurrentRepository.contains(getResolutionResult().getParent().getPom().getGav());
+                    }
+
+                    private boolean isAggregatorNotUsedAsParent() {
+                        List<String> subprojects = getResolutionResult().getPom().getSubprojects();
+                        if (subprojects == null || subprojects.isEmpty()) {
+                            return false;
+                        }
+                        List<MavenResolutionResult> modules = getResolutionResult().getModules();
+                        if (modules.isEmpty()) {
+                            return true;
+                        }
+                        for (MavenResolutionResult child : modules) {
+                            if (subprojects.contains(child.getPom().getGav().getArtifactId())) {
+                                return false;
+                            }
+                        }
+                        return true;
+                    }
+
+                    private boolean isParent() {
+                        return hasSubProjects() && hasModules();
+                    }
+
+                    private boolean hasModules() {
+                        List<MavenResolutionResult> modules = getResolutionResult().getModules();
+                        return modules.size() > 0;
+                    }
+
+                    private boolean hasSubProjects() {
+                        List<String> subprojects = getResolutionResult().getPom().getSubprojects();
+                        return subprojects != null && subprojects.size() > 0;
+                    }
+
+                });
+    }
+
+    private Boolean preferParent() {
+        return versionPattern == null || "preferParent".equals(versionPattern);
+    }
+
+    private Boolean preferChild() {
+        return "preferChild".equals(versionPattern);
+    }
+
+    private String versionPattern() {
+        final List<String> versionPatternSpecialValues = Arrays.asList("preferChild", "preferParent");
+        return versionPatternSpecialValues.contains(versionPattern) ? null : versionPattern;
     }
 
     private boolean hasAcceptableTransitivity(ResolvedDependency d, Scanned acc) {

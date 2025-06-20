@@ -32,7 +32,7 @@ import static org.openrewrite.xml.FilterTagChildrenVisitor.filterTagChildren;
 @Value
 @EqualsAndHashCode(callSuper = false)
 public class RemovePluginDependency extends Recipe {
-    private static final XPathMatcher PLUGINS_MATCHER = new XPathMatcher("/project/build/plugins");
+    private static final XPathMatcher PLUGINS_MATCHER = new XPathMatcher("//plugins");
 
     @Option(displayName = "Plugin group ID",
             description = "Group ID of the plugin from which the dependency will be removed. Supports glob." +

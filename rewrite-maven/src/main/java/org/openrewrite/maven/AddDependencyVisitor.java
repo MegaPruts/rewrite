@@ -15,7 +15,13 @@
  */
 package org.openrewrite.maven;
 
-import lombok.RequiredArgsConstructor;
+import static java.util.Collections.*;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
+
 import org.jspecify.annotations.Nullable;
 import org.openrewrite.ExecutionContext;
 import org.openrewrite.Validated;
@@ -33,12 +39,7 @@ import org.openrewrite.xml.AddToTagVisitor;
 import org.openrewrite.xml.XPathMatcher;
 import org.openrewrite.xml.tree.Xml;
 
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.regex.Pattern;
-
-import static java.util.Collections.emptyList;
+import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class AddDependencyVisitor extends MavenIsoVisitor<ExecutionContext> {
@@ -79,10 +80,10 @@ public class AddDependencyVisitor extends MavenIsoVisitor<ExecutionContext> {
     private String resolvedVersion;
 
     public AddDependencyVisitor(String groupId, String artifactId, String version,
-                                @Nullable String versionPattern, @Nullable String scope,
-                                @Nullable Boolean releasesOnly, @Nullable String type,
-                                @Nullable String classifier, @Nullable Boolean optional,
-                                @Nullable Pattern familyRegex) {
+            @Nullable String versionPattern, @Nullable String scope,
+            @Nullable Boolean releasesOnly, @Nullable String type,
+            @Nullable String classifier, @Nullable Boolean optional,
+            @Nullable Pattern familyRegex) {
         this(groupId, artifactId, version, versionPattern, scope, releasesOnly, type,
                 classifier, optional, familyRegex, null);
     }
@@ -98,7 +99,6 @@ public class AddDependencyVisitor extends MavenIsoVisitor<ExecutionContext> {
         }
         return super.visitTag(tag, executionContext);
     }
-
 
     @Override
     public Xml.Document visitDocument(Xml.Document document, ExecutionContext executionContext) {
@@ -118,9 +118,11 @@ public class AddDependencyVisitor extends MavenIsoVisitor<ExecutionContext> {
             }
         }
 
-        Validated<VersionComparator> versionValidation = Semver.validate(version, versionPattern);
-        if (versionValidation.isValid()) {
-            versionComparator = versionValidation.getValue();
+        if (version != null) {
+            Validated<VersionComparator> versionValidation = Semver.validate(version, versionPattern);
+            if (versionValidation.isValid()) {
+                versionComparator = versionValidation.getValue();
+            }
         }
 
         Xml.Tag root = maven.getRoot();
@@ -163,21 +165,22 @@ public class AddDependencyVisitor extends MavenIsoVisitor<ExecutionContext> {
 
                 Xml.Tag dependencyTag = Xml.Tag.build(
                         "\n<dependency>\n" +
-                        "<groupId>" + groupId + "</groupId>\n" +
-                        "<artifactId>" + artifactId + "</artifactId>\n" +
-                        (versionToUse == null ? "" :
-                                "<version>" + versionToUse + "</version>\n") +
-                        (classifier == null ? "" :
-                                "<classifier>" + classifier + "</classifier>\n") +
-                        (type == null || "jar".equals(type) ? "" :
-                                "<type>" + type + "</type>\n") +
-                        (scope == null || "compile".equals(scope) ? "" :
-                                "<scope>" + scope + "</scope>\n") +
-                        (Boolean.TRUE.equals(optional) ? "<optional>true</optional>\n" : "") +
-                        "</dependency>"
+                                "<groupId>" + groupId + "</groupId>\n" +
+                                "<artifactId>" + artifactId + "</artifactId>\n" +
+                                (versionToUse == null ? "" :
+                                        "<version>" + versionToUse + "</version>\n") +
+                                (classifier == null ? "" :
+                                        "<classifier>" + classifier + "</classifier>\n") +
+                                (type == null || "jar".equals(type) ? "" :
+                                        "<type>" + type + "</type>\n") +
+                                (scope == null || "compile".equals(scope) ? "" :
+                                        "<scope>" + scope + "</scope>\n") +
+                                (Boolean.TRUE.equals(optional) ? "<optional>true</optional>\n" : "") +
+                                "</dependency>"
                 );
 
-                doAfterVisit(new AddToTagVisitor<>(tag, dependencyTag, new InsertDependencyComparator(tag.getContent() == null ? emptyList() : tag.getContent(), dependencyTag)));
+                doAfterVisit(new AddToTagVisitor<>(tag, dependencyTag,
+                        new InsertDependencyComparator(tag.getContent() == null ? emptyList() : tag.getContent(), dependencyTag)));
                 maybeUpdateModel();
 
                 return tag;
@@ -196,7 +199,8 @@ public class AddDependencyVisitor extends MavenIsoVisitor<ExecutionContext> {
                             metadataFailures.insertRows(ctx, () -> downloadMetadata(groupId, artifactId, ctx));
                     // TODO This is hacky, but the class structure of LatestRelease is suboptimal, see https://github.com/openrewrite/rewrite/pull/5029
                     // Fix it when we have a chance to refactor the code.
-                    if (versionComparator.getClass().getSimpleName().equals("LatestRelease") && mavenMetadata.getVersioning().getRelease() != null) {
+                    if (versionComparator.getClass().getSimpleName().equals("LatestRelease")
+                            && mavenMetadata.getVersioning().getRelease() != null) {
                         return mavenMetadata.getVersioning().getRelease();
                     }
                     LatestRelease latest = new LatestRelease(versionPattern);

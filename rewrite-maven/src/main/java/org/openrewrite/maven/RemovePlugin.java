@@ -39,6 +39,8 @@ public class RemovePlugin extends Recipe {
             example = "rewrite-maven-plugin")
     String artifactId;
 
+
+
     @Override
     public String getDisplayName() {
         return "Remove Maven plugin";

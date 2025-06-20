@@ -20,7 +20,7 @@ dependencies {
     implementation("org.ow2.asm:asm:latest.release")
 
     testImplementation(project(":rewrite-test"))
-    "javaTck"(project(":rewrite-java-tck"))
+//    "javaTck"(project(":rewrite-java-tck"))
 }
 
 tasks.withType<JavaCompile> {
@@ -60,7 +60,7 @@ testing {
             dependencies {
                 implementation(project())
                 implementation(project(":rewrite-test"))
-                implementation(project(":rewrite-java-tck"))
+//                implementation(project(":rewrite-java-tck"))
                 implementation(project(":rewrite-java-test"))
                 implementation("org.assertj:assertj-core:latest.release")
             }

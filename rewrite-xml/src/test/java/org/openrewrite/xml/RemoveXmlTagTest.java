@@ -157,4 +157,25 @@ import static org.openrewrite.xml.Assertions.xml;
           )
         );
     }
+
+     @Test
+     void removeTagMatchedByAttributeValue() {
+         rewriteRun(
+           spec -> spec.recipe(new RemoveXmlTag("//bean[@id='myBean.subpackage.subpackage2']", null)),
+           xml(
+             """
+               <beans>
+                   <bean id='myBean.subpackage.subpackage2'/>
+                   <bean id='myBean.subpackage.subpackage3'/>
+               </beans>
+               """,
+             """
+               <beans>
+                   <bean id='myBean.subpackage.subpackage3'/>
+               </beans>
+               """,
+             documentSourceSpec -> documentSourceSpec.path("my/project/notBeans.xml")
+           )
+         );
+     }
 }
